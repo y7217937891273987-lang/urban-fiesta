@@ -3,4 +3,4 @@
 import logging
 
 logger = logging.getLogger(__name__)
-logger.info("Core module initialized")
+logger.debug("Core module initialized")
