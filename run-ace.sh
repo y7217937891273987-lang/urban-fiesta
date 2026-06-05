@@ -1,71 +1,146 @@
 #!/bin/bash
 
-# ACE - Autonomous Cognitive Engine startup script for macOS/Linux
+# =====================================================
+# ACE - Autonomous Cognitive Engine
+# Complete Automated Setup & Startup for macOS/Linux
+# Just run this script - it does EVERYTHING
+# =====================================================
 
-echo "========================================"
+set -e  # Exit on error
+
+echo ""
+echo "====================================================="
 echo " ACE - Autonomous Cognitive Engine"
-echo " macOS/Linux Startup Script"
-echo "========================================"
+echo " Automated Setup & Launch"
+echo "====================================================="
 echo ""
 
-# Check if Python is installed
+# Get script directory
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+cd "$SCRIPT_DIR"
+
+# =====================================================
+# Step 1: Check Python Installation
+# =====================================================
+echo "[STEP 1/6] Checking Python installation..."
 if ! command -v python3 &> /dev/null; then
+    echo ""
     echo "ERROR: Python 3 is not installed"
-    echo "Please install Python 3.8+ from https://www.python.org"
+    echo ""
+    echo "SOLUTION:"
+    echo ""
+    echo "macOS:"
+    echo "  brew install python3"
+    echo ""
+    echo "Ubuntu/Debian:"
+    echo "  sudo apt-get install python3 python3-pip python3-venv"
+    echo ""
+    echo "CentOS/RHEL:"
+    echo "  sudo yum install python3 python3-pip"
+    echo ""
     exit 1
 fi
-
-echo "[1/5] Python found: $(python3 --version)"
+echo "[DONE] Python found: $(python3 --version)"
 echo ""
 
-# Check if virtual environment exists
+# =====================================================
+# Step 2: Create Virtual Environment (if needed)
+# =====================================================
+echo "[STEP 2/6] Setting up Python environment..."
 if [ ! -d "venv" ]; then
-    echo "[2/5] Creating virtual environment..."
+    echo "        Creating virtual environment..."
     python3 -m venv venv
     if [ $? -ne 0 ]; then
         echo "ERROR: Failed to create virtual environment"
         exit 1
     fi
+    echo "[DONE] Virtual environment created"
 else
-    echo "[2/5] Virtual environment already exists"
+    echo "[DONE] Virtual environment already exists"
 fi
 echo ""
 
-# Activate virtual environment
-echo "[3/5] Activating virtual environment..."
+# =====================================================
+# Step 3: Activate Virtual Environment
+# =====================================================
+echo "[STEP 3/6] Activating virtual environment..."
 source venv/bin/activate
 if [ $? -ne 0 ]; then
     echo "ERROR: Failed to activate virtual environment"
     exit 1
 fi
+echo "[DONE] Environment activated"
 echo ""
 
-# Install dependencies
-echo "[4/5] Installing dependencies..."
-pip install -r requirements.txt
+# =====================================================
+# Step 4: Install Dependencies
+# =====================================================
+echo "[STEP 4/6] Installing dependencies (this may take 2-3 minutes)..."
+echo "        Please wait..."
+pip install --quiet -r requirements.txt
 if [ $? -ne 0 ]; then
-    echo "ERROR: Failed to install dependencies"
-    exit 1
+    echo ""
+    echo "WARNING: Quiet install failed, trying verbose..."
+    pip install -r requirements.txt
+    if [ $? -ne 0 ]; then
+        echo "ERROR: Failed to install dependencies"
+        exit 1
+    fi
 fi
+echo "[DONE] All dependencies installed"
 echo ""
 
-# Copy .env if it doesn't exist
+# =====================================================
+# Step 5: Create .env Configuration
+# =====================================================
+echo "[STEP 5/6] Setting up configuration..."
 if [ ! -f ".env" ]; then
-    echo "[5/5] Creating .env file from template..."
+    echo "        Creating .env file..."
     cp .env.example .env
+    if [ $? -ne 0 ]; then
+        echo "WARNING: Could not copy .env, using defaults"
+    fi
+    echo "[DONE] Configuration created"
+else
+    echo "[DONE] Configuration already exists"
 fi
 echo ""
 
-echo "========================================"
-echo " Starting ACE Backend (Port 5000)..."
-echo "========================================"
+# =====================================================
+# Step 6: Create Required Directories
+# =====================================================
+echo "[STEP 6/6] Preparing workspace..."
+mkdir -p logs
+mkdir -p artifacts/projects
+mkdir -p artifacts/code_snippets
+mkdir -p artifacts/memory
+mkdir -p artifacts/downloads
+echo "[DONE] Workspace ready"
 echo ""
 
-# Start the backend
+# =====================================================
+# Launch ACE
+# =====================================================
+echo "====================================================="
+echo " LAUNCHING ACE BACKEND"
+echo "====================================================="
+echo ""
+echo " Backend: http://localhost:5000"
+echo " Health:  http://localhost:5000/health"
+echo ""
+echo " Press Ctrl+C to stop"
+echo ""
+
 python main.py
 
 if [ $? -ne 0 ]; then
     echo ""
-    echo "ERROR: Failed to start ACE"
+    echo "ERROR: ACE failed to start"
+    echo ""
+    echo "Troubleshooting:"
+    echo "1. Ensure port 5000 is not in use"
+    echo "2. Check that Python 3.8+ is installed"
+    echo "3. Review logs in the 'logs' folder"
+    echo ""
     exit 1
 fi
