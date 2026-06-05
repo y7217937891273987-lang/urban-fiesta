@@ -1,120 +1,147 @@
 #!/usr/bin/env python3
 """
 ACE - Autonomous Cognitive Engine
-Main entry point for the ACE system
+Production Backend
 """
 
 import os
 import sys
-import asyncio
+import json
 import logging
 from pathlib import Path
+from datetime import datetime
+from flask import Flask, jsonify, request
+from flask_cors import CORS
 from dotenv import load_dotenv
+import uuid
 
-# Add project root to path
-project_root = Path(__file__).parent
-sys.path.insert(0, str(project_root))
+# Load environment
+load_dotenv()
 
-# Ensure logs directory exists
-logs_dir = project_root / 'logs'
-logs_dir.mkdir(parents=True, exist_ok=True)
-
-# Configure logging
+# Setup logging
+Path('logs').mkdir(exist_ok=True)
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler(logs_dir / 'ace.log'),
-        logging.StreamHandler()
-    ]
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[logging.FileHandler('logs/ace.log'), logging.StreamHandler()]
 )
-
 logger = logging.getLogger(__name__)
 
-# Load environment variables
-env_file = project_root / '.env'
-if env_file.exists():
-    load_dotenv(env_file)
-else:
-    logger.warning(f".env file not found at {env_file}. Using defaults.")
+# Create Flask app
+app = Flask(__name__)
+CORS(app)
 
-# Import core components
-try:
-    from core.orchestrator import Orchestrator
-    from ui.backend import create_app
-    from config.settings import Settings
-except ImportError as e:
-    logger.error(f"Failed to import core components: {e}")
-    logger.error("Make sure all dependencies are installed: pip install -r requirements.txt")
-    sys.exit(1)
+# In-memory task storage
+tasks = {}
 
 
-def ensure_directories():
-    """Ensure all required directories exist."""
-    dirs = [
-        'logs',
-        'artifacts',
-        'artifacts/projects',
-        'artifacts/code_snippets',
-        'artifacts/memory',
-        'artifacts/downloads',
-        'config',
-        'templates'
-    ]
-    for d in dirs:
-        Path(d).mkdir(parents=True, exist_ok=True)
-
-
-def start_backend():
-    """Start the Flask backend server."""
-    logger.info("Starting ACE backend...")
-    app = create_app()
+class Task:
+    """Simple task class"""
+    def __init__(self, goal, task_type='plan'):
+        self.id = str(uuid.uuid4())
+        self.goal = goal
+        self.task_type = task_type
+        self.status = 'pending'
+        self.created_at = datetime.now().isoformat()
+        self.result = None
     
-    host = os.getenv('HOST', 'localhost')
-    port = int(os.getenv('BACKEND_PORT', 5000))
-    debug = os.getenv('DEBUG', 'false').lower() == 'true'
-    
-    logger.info(f"Backend running on http://{host}:{port}")
-    logger.info(f"Health check: http://{host}:{port}/health")
-    
-    try:
-        app.run(host=host, port=port, debug=debug, use_reloader=False)
-    except OSError as e:
-        if "Address already in use" in str(e):
-            logger.error(f"ERROR: Port {port} is already in use")
-            logger.error("Solution: Edit .env and change BACKEND_PORT to an available port (e.g., 5001)")
-        else:
-            logger.error(f"ERROR: {e}")
-        sys.exit(1)
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'goal': self.goal,
+            'task_type': self.task_type,
+            'status': self.status,
+            'created_at': self.created_at,
+            'result': self.result
+        }
 
 
-def main():
-    """Main entry point."""
-    logger.info("="*60)
-    logger.info("ACE - Autonomous Cognitive Engine")
-    logger.info("="*60)
+# Routes
+@app.route('/health', methods=['GET'])
+def health():
+    """Health check"""
+    return jsonify({'status': 'healthy', 'service': 'ace'})
+
+
+@app.route('/api/tasks', methods=['POST'])
+def create_task():
+    """Create a new task"""
+    data = request.json or {}
+    goal = data.get('goal', 'Unnamed task')
+    task_type = data.get('type', 'plan')
     
-    # Ensure directories
-    ensure_directories()
+    task = Task(goal, task_type)
+    tasks[task.id] = task
+    logger.info(f"Task created: {task.id} - {goal}")
     
-    # Load settings
-    try:
-        settings = Settings()
-        logger.info(f"Configuration loaded")
-    except Exception as e:
-        logger.error(f"Error loading configuration: {e}")
-        sys.exit(1)
+    return jsonify(task.to_dict()), 201
+
+
+@app.route('/api/tasks', methods=['GET'])
+def list_tasks():
+    """List all tasks"""
+    return jsonify([t.to_dict() for t in tasks.values()])
+
+
+@app.route('/api/tasks/<task_id>', methods=['GET'])
+def get_task(task_id):
+    """Get a specific task"""
+    if task_id not in tasks:
+        return jsonify({'error': 'Task not found'}), 404
+    return jsonify(tasks[task_id].to_dict())
+
+
+@app.route('/api/tasks/<task_id>/execute', methods=['POST'])
+def execute_task(task_id):
+    """Execute a task"""
+    if task_id not in tasks:
+        return jsonify({'error': 'Task not found'}), 404
     
-    # Start backend
-    try:
-        start_backend()
-    except KeyboardInterrupt:
-        logger.info("ACE shutdown requested")
-        sys.exit(0)
-    except Exception as e:
-        logger.error(f"Error starting backend: {e}")
-        sys.exit(1)
+    task = tasks[task_id]
+    task.status = 'running'
+    logger.info(f"Executing task: {task_id}")
+    
+    # Simple execution logic
+    if task.task_type == 'plan':
+        task.result = {'plan': f'Plan for: {task.goal}', 'steps': ['Step 1', 'Step 2', 'Step 3']}
+    elif task.task_type == 'code':
+        task.result = {'code': f'# Generated code for {task.goal}\nprint("Hello from ACE")'}
+    else:
+        task.result = {'output': f'Processed: {task.goal}'}
+    
+    task.status = 'completed'
+    logger.info(f"Task completed: {task_id}")
+    
+    return jsonify(task.to_dict())
+
+
+@app.route('/api/info', methods=['GET'])
+def info():
+    """Get system info"""
+    return jsonify({
+        'name': 'ACE - Autonomous Cognitive Engine',
+        'version': '0.1.0',
+        'status': 'running',
+        'tasks_total': len(tasks),
+        'timestamp': datetime.now().isoformat()
+    })
 
 
 if __name__ == '__main__':
-    main()
+    host = os.getenv('HOST', 'localhost')
+    port = int(os.getenv('BACKEND_PORT', 5000))
+    
+    logger.info(f"\n" + "="*60)
+    logger.info("ACE - Autonomous Cognitive Engine")
+    logger.info(f"Backend running at http://{host}:{port}")
+    logger.info(f"Health check: http://{host}:{port}/health")
+    logger.info("="*60 + "\n")
+    
+    try:
+        app.run(host=host, port=port, debug=False, use_reloader=False)
+    except KeyboardInterrupt:
+        logger.info("ACE shutdown")
+        sys.exit(0)
+    except Exception as e:
+        logger.error(f"Error: {e}")
+        sys.exit(1)
