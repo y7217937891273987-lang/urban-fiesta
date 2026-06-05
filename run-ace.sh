@@ -73,19 +73,27 @@ echo "[DONE] Environment activated"
 echo ""
 
 # =====================================================
-# Step 4: Install Dependencies
+# Step 4: Upgrade pip and Install Dependencies
 # =====================================================
-echo "[STEP 4/6] Installing dependencies (this may take 2-3 minutes)..."
-echo "        Please wait..."
-pip install --quiet -r requirements.txt
+echo "[STEP 4/6] Upgrading pip and installing dependencies..."
+echo "        This may take 2-3 minutes. Please wait..."
+python3 -m pip install --upgrade pip setuptools wheel
+if [ $? -ne 0 ]; then
+    echo "WARNING: pip upgrade had issues, continuing anyway..."
+fi
+
+pip install -r requirements.txt
 if [ $? -ne 0 ]; then
     echo ""
-    echo "WARNING: Quiet install failed, trying verbose..."
-    pip install -r requirements.txt
-    if [ $? -ne 0 ]; then
-        echo "ERROR: Failed to install dependencies"
-        exit 1
-    fi
+    echo "ERROR: Failed to install dependencies"
+    echo ""
+    echo "TROUBLESHOOTING:"
+    echo "1. Check your internet connection"
+    echo "2. Try running this command manually:"
+    echo "   pip install -r requirements.txt --no-cache-dir"
+    echo "3. If issues persist, check logs"
+    echo ""
+    exit 1
 fi
 echo "[DONE] All dependencies installed"
 echo ""
@@ -131,7 +139,7 @@ echo ""
 echo " Press Ctrl+C to stop"
 echo ""
 
-python main.py
+python3 main.py
 
 if [ $? -ne 0 ]; then
     echo ""

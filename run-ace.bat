@@ -72,21 +72,29 @@ echo [DONE] Environment activated
 echo.
 
 REM =====================================================
-REM Step 4: Install Dependencies
+REM Step 4: Upgrade pip (important!)
 REM =====================================================
-echo [STEP 4/6] Installing dependencies (this may take 2-3 minutes)...
-echo        Please wait...
-pip install --quiet -r requirements.txt
+echo [STEP 4/6] Upgrading pip and installing dependencies...
+echo        This may take 2-3 minutes. Please wait...
+python -m pip install --upgrade pip setuptools wheel
+if errorlevel 1 (
+    echo WARNING: pip upgrade had issues, continuing anyway...
+)
+
+REM Install requirements with error handling
+pip install -r requirements.txt
 if errorlevel 1 (
     echo.
     echo ERROR: Failed to install dependencies
-    echo Trying alternative installation method...
-    pip install -r requirements.txt
-    if errorlevel 1 (
-        echo FAILED: Could not install dependencies
-        pause
-        exit /b 1
-    )
+    echo.
+    echo TROUBLESHOOTING:
+    echo 1. Check your internet connection
+    echo 2. Try running this command manually:
+    echo    pip install -r requirements.txt --no-cache-dir
+    echo 3. If issues persist, check logs/pip_error.log
+    echo.
+    pause
+    exit /b 1
 )
 echo [DONE] All dependencies installed
 echo.
